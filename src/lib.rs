@@ -515,7 +515,7 @@ impl OrderBuilder {
 }
 
 #[pymodule]
-fn edifact_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn edifact_parser(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Segment>()?;
     m.add_class::<Parser>()?;
     m.add_class::<Message>()?;
