@@ -17,6 +17,7 @@ impl fmt::Display for EdifactError {
 
 impl Error for EdifactError {}
 
+#[pyclass]
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct Delimiters {
     component: char,
@@ -399,6 +400,7 @@ impl OrderLine {
 
 // Add builder patterns for creating EDIFACT messages
 #[pyclass]
+#[derive(Debug, Clone)]
 pub struct OrderBuilder {
     order: Order,
 }
@@ -418,7 +420,8 @@ impl OrderBuilder {
         recipient: &str,
         date: &str,
         control_ref: &str,
-    ) -> PyResult<&mut Self> {
+        py: Python,
+    ) -> PyResult<Py<OrderBuilder>> {
         let elements = vec![
             vec!["UNOA".to_string(), "4".to_string()],
             vec![sender.to_string()],
@@ -429,14 +432,15 @@ impl OrderBuilder {
         ];
 
         self.order.interchange_header = Some(Segment::new("UNB".to_string(), elements, 0));
-        Ok(self)
+        Py::new(py, self.clone())
     }
 
     fn with_message_header(
         &mut self,
         message_ref: &str,
         message_type: &str,
-    ) -> PyResult<&mut Self> {
+        py: Python,
+    ) -> PyResult<Py<OrderBuilder>> {
         let elements = vec![
             vec![message_ref.to_string()],
             vec![
@@ -448,7 +452,7 @@ impl OrderBuilder {
         ];
 
         self.order.message_header = Some(Segment::new("UNH".to_string(), elements, 1));
-        Ok(self)
+        Py::new(py, self.clone())
     }
 
     fn with_bgm(
@@ -456,7 +460,8 @@ impl OrderBuilder {
         message_name: &str,
         doc_number: &str,
         message_function: &str,
-    ) -> PyResult<&mut Self> {
+        py: Python,
+    ) -> PyResult<Py<OrderBuilder>> {
         let elements = vec![
             vec![message_name.to_string()],
             vec![doc_number.to_string()],
@@ -468,7 +473,7 @@ impl OrderBuilder {
             elements,
             self.order.segments.len(),
         ));
-        Ok(self)
+        Py::new(py, self.clone())
     }
 
     fn add_order_line(
@@ -477,7 +482,8 @@ impl OrderBuilder {
         item_number: &str,
         quantity: &str,
         price: &str,
-    ) -> PyResult<&mut Self> {
+        py: Python,
+    ) -> PyResult<Py<OrderBuilder>> {
         // LIN segment
         let lin_elements = vec![
             vec![line_number.to_string()],
@@ -506,7 +512,7 @@ impl OrderBuilder {
             self.order.segments.len(),
         ));
 
-        Ok(self)
+        Py::new(py, self.clone())
     }
 
     fn build(&self) -> Order {
