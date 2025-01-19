@@ -157,37 +157,72 @@ impl Parser {
         }
 
         // Parse elements and components
-        while let Some(c) = chars.next() {
-            if is_escaped {
-                current_component.push(c);
-                is_escaped = false;
-                continue;
-            }
-
-            if c == self.delimiters.escape {
-                is_escaped = true;
-            } else if c == self.delimiters.component {
-                current_element.push(current_component);
-                current_component = String::new();
-            } else if c == self.delimiters.data {
-                current_element.push(current_component);
-                elements.push(current_element);
-                current_element = Vec::new();
-                current_component = String::new();
-            } else if c == self.delimiters.segment {
-                if !current_component.is_empty() {
+        loop {
+            match chars.next() {
+                Some(c) if is_escaped => {
+                    current_component.push(c);
+                    is_escaped = false;
+                }
+                Some(c) if c == self.delimiters.escape => {
+                    is_escaped = true;
+                }
+                Some(c) if c == self.delimiters.component => {
+                    // Add the current component and start a new one
                     current_element.push(current_component);
+                    current_component = String::new();
                 }
-                if !current_element.is_empty() {
+                Some(c) if c == self.delimiters.data => {
+                    // If we have a current component, add it to the current element
+                    if !current_component.is_empty() {
+                        current_element.push(current_component);
+                    }
+
+                    // Always push the current element (even if empty) and start a new one
                     elements.push(current_element);
+                    current_element = Vec::new();
+                    current_component = String::new();
+
+                    // Handle consecutive data delimiters
+                    if chars.peek() == Some(&self.delimiters.data) {
+                        elements.push(Vec::new());
+                        chars.next();
+                    }
                 }
-                break;
-            } else {
-                current_component.push(c);
+                Some(c) if c == self.delimiters.segment => {
+                    // If we have a current component, add it to the current element
+                    if !current_component.is_empty() {
+                        current_element.push(current_component);
+                    }
+
+                    // Always push the final element if we have components or if we've seen elements before
+                    if !current_element.is_empty() || !elements.is_empty() {
+                        elements.push(current_element);
+                    }
+                    break;
+                }
+                Some(c) => {
+                    current_component.push(c);
+                }
+                None => {
+                    // Handle end of input similar to segment terminator
+                    if !current_component.is_empty() {
+                        current_element.push(current_component);
+                    }
+                    if !current_element.is_empty() || !elements.is_empty() {
+                        elements.push(current_element);
+                    }
+                    break;
+                }
             }
         }
 
-        Ok(Segment::new(tag, elements, position))
+        // Debug print
+        println!("Parsed segment:");
+        println!("  Tag: {}", tag);
+        println!("  Elements: {:#?}", elements);
+
+        let segment = Segment::new(tag, elements, position);
+        Ok(segment)
     }
 }
 
@@ -603,10 +638,53 @@ mod tests {
     fn test_escaped_characters() {
         Python::with_gil(|_py| {
             let parser = setup_test_parser();
-            let segment = parser.parse_segment("FTX+AAA+BBB?+CCC+DDD'", 0).unwrap();
 
+            // Test basic escape
+            let segment = parser.parse_segment("FTX+AAA+BBB?+CCC'", 0).unwrap();
             assert_eq!(segment.tag, "FTX");
-            assert_eq!(segment.elements[2][0], "BBB+CCC");
+            assert_eq!(segment.elements[1][0], "BBB+CCC");
+
+            // Test escaping data separator
+            let segment = parser.parse_segment("FTX+AAA+BBB?+CCC+DDD'", 0).unwrap();
+            assert_eq!(segment.elements[1][0], "BBB+CCC");
+            assert_eq!(segment.elements[2][0], "DDD");
+
+            // Test escaping component separator
+            let segment = parser.parse_segment("FTX+AAA+BBB?:CCC'", 0).unwrap();
+            assert_eq!(segment.elements[1][0], "BBB:CCC");
+
+            // Test escaping segment terminator
+            let segment = parser.parse_segment("FTX+AAA+BBB?\'CCC'", 0).unwrap();
+            assert_eq!(segment.elements[1][0], "BBB'CCC");
+
+            // Test multiple escapes
+            let segment = parser
+                .parse_segment("FTX+AAA+BBB?+CCC?:DDD?\'EEE'", 0)
+                .unwrap();
+            assert_eq!(segment.elements[1][0], "BBB+CCC:DDD'EEE");
+        });
+    }
+
+    // Add new test for complex escape sequences
+    #[test]
+    fn test_complex_escape_sequences() {
+        Python::with_gil(|_py| {
+            let parser = setup_test_parser();
+
+            // Test multiple consecutive escapes
+            let segment = parser.parse_segment("FTX+AAA+BBB?+?:?\'CCC'", 0).unwrap();
+            assert_eq!(segment.elements[1][0], "BBB+:'CCC");
+
+            // Test escape at end of component
+            let segment = parser.parse_segment("FTX+AAA+BBB?++CCC'", 0).unwrap();
+            assert_eq!(segment.elements[1][0], "BBB+");
+            assert_eq!(segment.elements[2][0], "CCC");
+
+            // Test empty components with escapes
+            let segment = parser.parse_segment("FTX+AAA+?++?:+CCC'", 0).unwrap();
+            assert_eq!(segment.elements[1][0], "+");
+            assert_eq!(segment.elements[2][0], ":");
+            assert_eq!(segment.elements[3][0], "CCC");
         });
     }
 
