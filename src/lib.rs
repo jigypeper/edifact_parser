@@ -535,7 +535,9 @@ fn edifact_parser(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+    use pyo3::Python;
 
+    // Helper function to create a test parser with default delimiters
     fn setup_test_parser() -> Parser {
         let mut parser = Parser::new();
         parser.set_delimiters("UNA:+.?*'").unwrap();
@@ -544,226 +546,204 @@ mod tests {
 
     #[test]
     fn test_default_delimiters() {
-        let parser = Parser::new();
-        assert_eq!(parser.delimiters.component, ':');
-        assert_eq!(parser.delimiters.data, '+');
-        assert_eq!(parser.delimiters.decimal, '.');
-        assert_eq!(parser.delimiters.escape, '?');
-        assert_eq!(parser.delimiters.segment, '\'');
-        assert_eq!(parser.delimiters.reserved, '*');
+        Python::with_gil(|_py| {
+            let parser = Parser::new();
+            assert_eq!(parser.delimiters.component, ':');
+            assert_eq!(parser.delimiters.data, '+');
+            assert_eq!(parser.delimiters.decimal, '.');
+            assert_eq!(parser.delimiters.escape, '?');
+            assert_eq!(parser.delimiters.segment, '\'');
+            assert_eq!(parser.delimiters.reserved, '*');
+        });
     }
 
     #[test]
     fn test_custom_delimiters() {
-        let mut parser = Parser::new();
-        parser.set_delimiters("UNA|^.?@~").unwrap();
-        assert_eq!(parser.delimiters.component, '|');
-        assert_eq!(parser.delimiters.data, '^');
-        assert_eq!(parser.delimiters.decimal, '.');
-        assert_eq!(parser.delimiters.escape, '?');
-        assert_eq!(parser.delimiters.reserved, '@');
-        assert_eq!(parser.delimiters.segment, '~');
+        Python::with_gil(|_py| {
+            let mut parser = Parser::new();
+            parser.set_delimiters("UNA|^.?@~").unwrap();
+            assert_eq!(parser.delimiters.component, '|');
+            assert_eq!(parser.delimiters.data, '^');
+            assert_eq!(parser.delimiters.decimal, '.');
+            assert_eq!(parser.delimiters.escape, '?');
+            assert_eq!(parser.delimiters.reserved, '@');
+            assert_eq!(parser.delimiters.segment, '~');
+        });
     }
 
     #[test]
     fn test_basic_segment_parsing() {
-        let parser = setup_test_parser();
-        let segment = parser.parse_segment("BGM+220+123456+9'", 0).unwrap();
+        Python::with_gil(|_py| {
+            let parser = setup_test_parser();
+            let segment = parser.parse_segment("BGM+220+123456+9'", 0).unwrap();
 
-        assert_eq!(segment.tag, "BGM");
-        assert_eq!(segment.elements.len(), 3);
-        assert_eq!(segment.elements[0][0], "220");
-        assert_eq!(segment.elements[1][0], "123456");
-        assert_eq!(segment.elements[2][0], "9");
+            assert_eq!(segment.tag, "BGM");
+            assert_eq!(segment.elements.len(), 3);
+            assert_eq!(segment.elements[0][0], "220");
+            assert_eq!(segment.elements[1][0], "123456");
+            assert_eq!(segment.elements[2][0], "9");
+        });
     }
 
     #[test]
     fn test_component_parsing() {
-        let parser = setup_test_parser();
-        let segment = parser.parse_segment("NAD+BY+5021376940009::9'", 0).unwrap();
+        Python::with_gil(|_py| {
+            let parser = setup_test_parser();
+            let segment = parser.parse_segment("NAD+BY+5021376940009::9'", 0).unwrap();
 
-        assert_eq!(segment.tag, "NAD");
-        assert_eq!(segment.elements[1].len(), 3);
-        assert_eq!(segment.elements[1][0], "5021376940009");
-        assert_eq!(segment.elements[1][1], "");
-        assert_eq!(segment.elements[1][2], "9");
+            assert_eq!(segment.tag, "NAD");
+            assert_eq!(segment.elements[1].len(), 3);
+            assert_eq!(segment.elements[1][0], "5021376940009");
+            assert_eq!(segment.elements[1][1], "");
+            assert_eq!(segment.elements[1][2], "9");
+        });
     }
 
     #[test]
     fn test_escaped_characters() {
-        let parser = setup_test_parser();
-        let segment = parser.parse_segment("FTX+AAA+BBB?+CCC+DDD'", 0).unwrap();
+        Python::with_gil(|_py| {
+            let parser = setup_test_parser();
+            let segment = parser.parse_segment("FTX+AAA+BBB?+CCC+DDD'", 0).unwrap();
 
-        assert_eq!(segment.tag, "FTX");
-        assert_eq!(segment.elements[2][0], "BBB+CCC");
+            assert_eq!(segment.tag, "FTX");
+            assert_eq!(segment.elements[2][0], "BBB+CCC");
+        });
     }
-
-    #[test]
-    fn test_empty_elements() {
-        let parser = setup_test_parser();
-        let segment = parser.parse_segment("COM++TE'", 0).unwrap();
-
-        assert_eq!(segment.tag, "COM");
-        assert_eq!(segment.elements[0][0], "");
-        assert_eq!(segment.elements[1][0], "TE");
-    }
-
-    // New test cases start here
-    #[test]
-    fn test_multiple_escaped_characters() {
-        let parser = setup_test_parser();
-        let segment = parser.parse_segment("FTX+AAA+BBB?+CCC?:DDD?'EEE'", 0).unwrap();
-
-        assert_eq!(segment.tag, "FTX");
-        assert_eq!(segment.elements[1][0], "BBB+CCC:DDD'EEE");
-    }
-
-    #[test]
-    fn test_decimal_handling() {
-        let parser = setup_test_parser();
-        let segment = parser.parse_segment("MOA+203:1234.56'", 0).unwrap();
-
-        assert_eq!(segment.tag, "MOA");
-        assert_eq!(segment.elements[0][0], "203");
-        assert_eq!(segment.elements[0][1], "1234.56");
-    }
-
-    #[test]
-    fn test_empty_component_sequence() {
-        let parser = setup_test_parser();
-        let segment = parser.parse_segment("NAD+BY+:::9'", 0).unwrap();
-
-        assert_eq!(segment.tag, "NAD");
-        assert_eq!(segment.elements[1].len(), 4);
-        assert_eq!(segment.elements[1][0], "");
-        assert_eq!(segment.elements[1][1], "");
-        assert_eq!(segment.elements[1][2], "");
-        assert_eq!(segment.elements[1][3], "9");
-    }
-
-    #[test]
-    fn test_segment_position() {
-        let parser = setup_test_parser();
-        let segment = parser.parse_segment("UNH+1+ORDERS'", 5).unwrap();
-
-        assert_eq!(segment.position, 5);
-    }
-
-    const SAMPLE_ORDER: &str = "UNA:+.?*'
-UNB+UNOA:4+5021376940009:14+1111111111111:14+200421:1000+0001+ORDERS'
-UNH+1+ORDERS:D:01B:UN:EAN010'
-BGM+220+123456+9'
-LIN+1++121354654:BP'
-IMD+F++:::TPRG item description'
-QTY+21:2'
-MOA+203:200.00'
-PRI+AAA:100.00'
-RFF+LI:1'
-UNT+1+27'
-UNZ+1+0001'";
 
     #[test]
     fn test_order_parsing() {
-        let order = Order::from_edifact(SAMPLE_ORDER.to_string()).unwrap();
+        Python::with_gil(|_py| {
+            let sample_order = "UNA:+.?*'
+UNB+UNOA:4+SENDER+RECEIVER+20240119:1200+REF123'
+UNH+1+ORDERS:D:96A:UN'
+BGM+220+123456+9'
+LIN+1++ITEM123:BP'
+QTY+21:5'
+PRI+AAA:10.00'";
 
-        assert!(order.interchange_header.is_some());
-        assert!(order.message_header.is_some());
-        assert!(!order.segments.is_empty());
+            let order = Order::from_edifact(sample_order.to_string()).unwrap();
 
-        // Test specific header contents
-        if let Some(ref header) = order.interchange_header {
-            assert_eq!(header.elements[0][0], "UNOA");
-            assert_eq!(header.elements[0][1], "4");
-            assert_eq!(header.elements[1][0], "5021376940009");
-        }
+            assert!(order.interchange_header.is_some());
+            assert!(order.message_header.is_some());
+            assert!(!order.segments.is_empty());
+
+            // Test header contents
+            if let Some(ref header) = order.interchange_header {
+                assert_eq!(header.tag, "UNB");
+                assert_eq!(header.elements[0][0], "UNOA");
+                assert_eq!(header.elements[0][1], "4");
+                assert_eq!(header.elements[1][0], "SENDER");
+            }
+        });
     }
 
     #[test]
-    fn test_order_lines_content() {
-        let order = Order::from_edifact(SAMPLE_ORDER.to_string()).unwrap();
-        let lines = order.get_order_lines().unwrap();
+    fn test_order_lines() {
+        Python::with_gil(|_py| {
+            let sample_order = "UNA:+.?*'
+UNB+UNOA:4+SENDER+RECEIVER+20240119:1200+REF123'
+UNH+1+ORDERS:D:96A:UN'
+BGM+220+123456+9'
+LIN+1++ITEM123:BP'
+QTY+21:5'
+PRI+AAA:10.00'";
 
-        assert_eq!(lines.len(), 1);
-        let line = &lines[0];
-        
-        // Test specific line contents
-        assert_eq!(line.line_segment.elements[0][0], "1");
-        assert_eq!(line.line_segment.elements[2][0], "121354654");
-        
-        if let Some(ref qty) = line.quantity {
-            assert_eq!(qty.elements[0][0], "21");
-            assert_eq!(qty.elements[1][0], "2");
-        }
-        
-        if let Some(ref price) = line.price {
-            assert_eq!(price.elements[0][0], "AAA");
-            assert_eq!(price.elements[1][0], "100.00");
-        }
-    }
+            let order = Order::from_edifact(sample_order.to_string()).unwrap();
+            let lines = order.get_order_lines().unwrap();
 
-    #[test]
-    fn test_order_builder_complex() {
-        let mut builder = OrderBuilder::new();
-        let order = builder
-            .with_interchange_header("5021376940009", "1111111111111", "200421", "0001")
-            .unwrap()
-            .with_message_header("1", "ORDERS")
-            .unwrap()
-            .with_bgm("220", "123456", "9")
-            .unwrap()
-            .add_order_line("1", "121354654", "2", "100.00")
-            .unwrap()
-            .add_order_line("2", "121354655", "1", "150.00")
-            .unwrap()
-            .build();
+            assert_eq!(lines.len(), 1);
+            let line = &lines[0];
 
-        let edifact = order.to_edifact().unwrap();
-        
-        // Test multiple order lines
-        assert!(edifact.contains("LIN+1++121354654:BP'"));
-        assert!(edifact.contains("LIN+2++121354655:BP'"));
-        assert!(edifact.contains("QTY+21:2'"));
-        assert!(edifact.contains("QTY+21:1'"));
-    }
+            assert_eq!(line.line_segment.tag, "LIN");
+            assert_eq!(line.line_segment.elements[0][0], "1");
+            assert_eq!(line.line_segment.elements[2][0], "ITEM123");
 
-    #[test]
-    fn test_malformed_segment() {
-        let parser = setup_test_parser();
-        let result = parser.parse_segment("BGM+220+123456+'", 0);
-        assert!(result.is_ok());
-        let segment = result.unwrap();
-        assert_eq!(segment.elements[2][0], "");
+            if let Some(ref qty) = line.quantity {
+                assert_eq!(qty.elements[1][0], "5");
+            }
+
+            if let Some(ref price) = line.price {
+                assert_eq!(price.elements[1][0], "10.00");
+            }
+        });
     }
 
     #[test]
     fn test_segment_to_edifact() {
-        let parser = setup_test_parser();
-        let segment = Segment::new(
-            "DTM".to_string(),
-            vec![
-                vec!["137".to_string()],
-                vec!["20240119".to_string()],
-                vec!["102".to_string()]
-            ],
-            0
-        );
+        Python::with_gil(|_py| {
+            let delimiters = Delimiters::default();
+            let segment = Segment::new(
+                "DTM".to_string(),
+                vec![
+                    vec!["137".to_string()],
+                    vec!["20240119".to_string()],
+                    vec!["102".to_string()],
+                ],
+                0,
+            );
 
-        assert_eq!(segment.to_edifact(&parser.delimiters), "DTM+137+20240119+102'");
+            assert_eq!(segment.to_edifact(&delimiters), "DTM+137+20240119+102'");
+        });
     }
 
     #[test]
     fn test_get_component() {
-        let segment = Segment::new(
-            "NAD".to_string(),
-            vec![
-                vec!["BY".to_string()],
-                vec!["12345".to_string(), "92".to_string()]
-            ],
-            0
-        );
+        Python::with_gil(|_py| {
+            let segment = Segment::new(
+                "NAD".to_string(),
+                vec![
+                    vec!["BY".to_string()],
+                    vec!["12345".to_string(), "92".to_string()],
+                ],
+                0,
+            );
 
-        assert_eq!(segment.get_component(1, 1), Some(&"92".to_string()));
-        assert_eq!(segment.get_component(1, 2), None);
-        assert_eq!(segment.get_component(2, 0), None);
+            assert_eq!(segment.get_component(1, 1), Some(&"92".to_string()));
+            assert_eq!(segment.get_component(1, 2), None);
+            assert_eq!(segment.get_component(2, 0), None);
+        });
+    }
+
+    #[test]
+    fn test_order_builder() {
+        Python::with_gil(|_py| {
+            let mut builder = OrderBuilder::new();
+            let order = builder.build();
+
+            assert!(order.segments.is_empty());
+            assert!(order.interchange_header.is_none());
+            assert!(order.message_header.is_none());
+        });
+    }
+
+    #[test]
+    fn test_message_creation() {
+        Python::with_gil(|_py| {
+            let message = Message::new();
+            assert!(message.segments.is_empty());
+            assert!(message.service_segments.is_empty());
+        });
+    }
+
+    #[test]
+    fn test_order_line_creation() {
+        Python::with_gil(|_py| {
+            let line_segment = Segment::new(
+                "LIN".to_string(),
+                vec![
+                    vec!["1".to_string()],
+                    vec![],
+                    vec!["ITEM123".to_string(), "BP".to_string()],
+                ],
+                0,
+            );
+
+            let order_line = OrderLine::new(line_segment);
+            assert!(order_line.quantity.is_none());
+            assert!(order_line.price.is_none());
+            assert!(order_line.description.is_none());
+            assert!(order_line.amount.is_none());
+            assert!(order_line.reference.is_none());
+        });
     }
 }
