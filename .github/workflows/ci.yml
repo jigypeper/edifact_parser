@@ -70,4 +70,4 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           uv venv
           uv pip install maturin
-          maturin build --release
+          uv run maturin build --release
