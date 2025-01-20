@@ -1,1 +1,4 @@
 /target
+/.pytest_cache
+/.coverage
+/tests/__pycache__/
