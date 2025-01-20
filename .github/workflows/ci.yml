@@ -55,7 +55,7 @@ jobs:
         run: cargo test
       
       - name: Run Python tests
-        run: pytest tests/ --cov=edifact_parser
+        run: uv run pytest tests/ --cov=edifact_parser
 
   build:
     needs: [clippy, test]
