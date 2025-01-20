@@ -1,10 +1,12 @@
 use pyo3::prelude::*;
+#[allow(unused_imports)]
 use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct EdifactError {
     message: String,
 }
@@ -43,6 +45,7 @@ impl Default for Delimiters {
 
 #[pyclass]
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct Segment {
     #[pyo3(get)]
     tag: String,
@@ -149,6 +152,7 @@ impl Parser {
         let mut is_escaped = false;
 
         // Parse tag
+        #[allow(clippy::while_let_on_iterator)]
         while let Some(c) = chars.next() {
             if c == self.delimiters.data {
                 break;
@@ -224,6 +228,7 @@ impl Parser {
 }
 
 #[pyclass]
+#[allow(dead_code)]
 struct Message {
     segments: Vec<Segment>,
     service_segments: HashMap<String, Segment>,
