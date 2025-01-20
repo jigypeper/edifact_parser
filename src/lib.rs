@@ -167,35 +167,38 @@ impl Parser {
                     is_escaped = true;
                 }
                 Some(c) if c == self.delimiters.component => {
-                    // Add the current component and start a new one
-                    current_element.push(current_component);
+                    // Add current component to current element and start new component
+                    if !current_component.is_empty() {
+                        current_element.push(current_component);
+                    } else {
+                        current_element.push(String::new());
+                    }
                     current_component = String::new();
                 }
                 Some(c) if c == self.delimiters.data => {
-                    // If we have a current component, add it to the current element
-                    if !current_component.is_empty() {
+                    // Finish current component and element
+                    if !current_component.is_empty() || !current_element.is_empty() {
                         current_element.push(current_component);
+                        elements.push(current_element);
+                    } else {
+                        // Handle empty element
+                        elements.push(Vec::new());
                     }
-
-                    // Always push the current element (even if empty) and start a new one
-                    elements.push(current_element);
                     current_element = Vec::new();
                     current_component = String::new();
 
                     // Handle consecutive data delimiters
-                    if chars.peek() == Some(&self.delimiters.data) {
+                    while chars.peek() == Some(&self.delimiters.data) {
                         elements.push(Vec::new());
                         chars.next();
                     }
                 }
                 Some(c) if c == self.delimiters.segment => {
-                    // If we have a current component, add it to the current element
-                    if !current_component.is_empty() {
-                        current_element.push(current_component);
-                    }
-
-                    // Always push the final element if we have components or if we've seen elements before
-                    if !current_element.is_empty() || !elements.is_empty() {
+                    // Finish final component and element if not empty
+                    if !current_component.is_empty() || !current_element.is_empty() {
+                        if !current_component.is_empty() {
+                            current_element.push(current_component);
+                        }
                         elements.push(current_element);
                     }
                     break;
@@ -204,11 +207,11 @@ impl Parser {
                     current_component.push(c);
                 }
                 None => {
-                    // Handle end of input similar to segment terminator
+                    // Handle end of input (similar to segment terminator)
                     if !current_component.is_empty() {
                         current_element.push(current_component);
                     }
-                    if !current_element.is_empty() || !elements.is_empty() {
+                    if !current_element.is_empty() {
                         elements.push(current_element);
                     }
                     break;
@@ -216,13 +219,7 @@ impl Parser {
             }
         }
 
-        // Debug print
-        println!("Parsed segment:");
-        println!("  Tag: {}", tag);
-        println!("  Elements: {:#?}", elements);
-
-        let segment = Segment::new(tag, elements, position);
-        Ok(segment)
+        Ok(Segment::new(tag, elements, position))
     }
 }
 
@@ -723,8 +720,8 @@ UNB+UNOA:4+SENDER+RECEIVER+20240119:1200+REF123'
 UNH+1+ORDERS:D:96A:UN'
 BGM+220+123456+9'
 LIN+1++ITEM123:BP'
-QTY+21:5'
-PRI+AAA:10.00'";
+QTY+21+5'
+PRI+AAA+10.00'";
 
             let order = Order::from_edifact(sample_order.to_string()).unwrap();
             let lines = order.get_order_lines().unwrap();
