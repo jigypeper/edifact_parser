@@ -152,6 +152,7 @@ impl Parser {
         let mut is_escaped = false;
 
         // Parse tag
+        #[allow(clippy::while_let_on_iterator)]
         while let Some(c) = chars.next() {
             if c == self.delimiters.data {
                 break;
